@@ -38,6 +38,8 @@ public:
 	void cleanup() override;
 	void resize() override;
 	void setUIVisibility(bool visible);
+	typedef enum { IMAGE, SEQUENCE, SHADER, CAMERA, SHARED, AUDIO, STREAM } ModeType;
+
 private:
 	// Settings
 	SDASettingsRef					mSDASettings;
@@ -45,6 +47,7 @@ private:
 	SDASessionRef					mSDASession;
 	// Log
 	SDALogRef						mSDALog;
+	ModeType						mMode;
 	// Spout
 	SpoutIn							mSpoutIn;
 	gl::Texture2dRef				mSpoutTexture;
@@ -62,7 +65,6 @@ private:
 	gl::FboRef						mFbo;
 	//! shaders
 	gl::GlslProgRef					mGlsl;
-	int								mMode;
 	// ndi
 	CinderNDISender					mNDISender;
 	ci::SurfaceRef 					mSurface;
@@ -83,6 +85,7 @@ SDAWarpingVizApp::SDAWarpingVizApp()
 	// Session
 	mSDASession = SDASession::create(mSDASettings);
 	mSDASession->getWindowsResolution();
+	mMode = SHADER;
 	// warping
 	mUseBeginEnd = false;
 	mSettings = getAssetPath("") / "warps.xml";
@@ -128,7 +131,6 @@ SDAWarpingVizApp::SDAWarpingVizApp()
 	mSurface = ci::Surface::create(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, true, SurfaceChannelOrder::BGRA);
 
 	// shader
-	mMode = 0;
 	mGlsl = gl::GlslProg::create(gl::GlslProg::Format().vertex(loadAsset("passthrough.vs")).fragment(loadAsset("post.glsl")));
 
 	gl::enableDepthRead();
@@ -205,7 +207,7 @@ void SDAWarpingVizApp::update()
 		mSDASession->setFloatUniformValueByIndex(mSDASettings->IFPS, getAverageFps());
 		mSDASession->update();
 		// render into our FBO
-		if (mMode = 1) {
+		if (mMode == SHADER) {
 			renderToFbo();
 		}
 	}
@@ -278,11 +280,14 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 		case KeyEvent::KEY_f:
 			positionRenderWindow();
 			break;
-		case KeyEvent::KEY_s:
-			mMode = 1;
+		case KeyEvent::KEY_a:
+			mMode = SHADER;
 			break;
-		case KeyEvent::KEY_i:
-			mMode = 2;
+		case KeyEvent::KEY_z:
+			mMode = SHARED;
+			break;
+		case KeyEvent::KEY_e:
+			mMode = IMAGE;
 			break;
 		case KeyEvent::KEY_v:
 			mFlipV = !mFlipV;
@@ -290,7 +295,6 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 		case KeyEvent::KEY_h:
 			mFlipH = !mFlipH;
 			break;
-
 		case KeyEvent::KEY_ESCAPE:
 			// quit the application
 			quit();
@@ -299,7 +303,7 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 			// toggle warp edit mode
 			Warp::enableEditMode(!Warp::isEditModeEnabled());
 			break;
-		case KeyEvent::KEY_a:
+		case KeyEvent::KEY_r:
 			// toggle drawing a random region of the image
 			if (mSrcArea.getWidth() != mImage->getWidth() || mSrcArea.getHeight() != mImage->getHeight())
 				mSrcArea = mImage->getBounds();
@@ -322,6 +326,7 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 			break;
 		}
 	}
+	CI_LOG_V("key " + toString(event.getCode()) + " mode:" + toString(mMode));
 }
 void SDAWarpingVizApp::keyUp(KeyEvent event)
 {
@@ -371,7 +376,7 @@ void SDAWarpingVizApp::draw()
 			gl::draw(mSpoutTexture, Rectf(0, tHeight * 2 + margin, tWidth, tHeight + margin));
 			gl::drawString("FlipV", vec2(toPixels(0), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
 
-			if (mMode == 1) {
+			if (mMode == SHADER) {
 				// show the FBO color texture 
 				gl::draw(mFbo->getColorTexture(), Rectf(tWidth + margin, tHeight + margin, tWidth * 2 + margin, tHeight * 2 + margin));
 				gl::drawString("Shader", vec2(toPixels(tWidth + margin), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
@@ -386,56 +391,16 @@ void SDAWarpingVizApp::draw()
 			gl::drawString("fps: " + std::to_string((int)getAverageFps()), vec2(getWindowWidth() - toPixels(100), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
 			gl::drawString("RH click to select a sender", vec2(toPixels(20), getWindowHeight() - toPixels(60)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
 		}
-		else {
-			if (mMode == 1) {
-				gl::draw(mFbo->getColorTexture(), rectangle);
-			}
-			else {
-				gl::draw(mSpoutTexture, rectangle);
-			}
-			
-		}
-		
-			// iterate over the warps and draw their content
-			for (auto &warp : mWarps) {
-				// there are two ways you can use the warps:
-				if (mUseBeginEnd) {
-					// a) issue your draw commands between begin() and end() statements
-					warp->begin();
 
-					// in this demo, we want to draw a specific area of our image,
-					// but if you want to draw the whole image, you can simply use: gl::draw( mImage );
-					if (mImage && mMode == 2) {
-						gl::draw(mImage, mSrcArea, warp->getBounds());
-					}
-					else {
-						if (mMode == 1) {
-							gl::draw(mFbo->getColorTexture(), rectangle);
-						}
-						else {
-							gl::draw(mSpoutTexture, rectangle);
-						}
-					}
-					warp->end();
-				}
-				else {
-					// b) simply draw a texture on them (ideal for video)
-
-					// in this demo, we want to draw a specific area of our image,
-					// but if you want to draw the whole image, you can simply use: warp->draw( mImage );
-					warp->draw(mImage, mSrcArea);
-				}
-			}
-		
 		// NDI
-		if (mMode) {
+		if (mMode == 1) {
 			mSurface = Surface::create(mFbo->getColorTexture()->createSource());
 		}
 		else {
 			mSurface = Surface::create(mSpoutTexture->createSource());
 		}
 		long long timecode = getElapsedFrames();
-		XmlTree msg{ "ci_meta", mSDASettings->sFps + " fps SDAViz" };
+		XmlTree msg{ "ci_meta", mSDASettings->sFps + " fps SDAWarpingViz" };
 		mNDISender.sendMetadata(msg, timecode);
 		mNDISender.sendSurface(*mSurface, timecode);
 	}
@@ -450,6 +415,58 @@ void SDAWarpingVizApp::draw()
 		
 	}
 
+	// iterate over the warps and draw their content
+	for (auto &warp : mWarps) {
+		// there are two ways you can use the warps:
+		if (mUseBeginEnd) {
+			// a) issue your draw commands between begin() and end() statements
+			warp->begin();
+			switch (mMode)
+			{
+			case SHADER:
+				gl::draw(mFbo->getColorTexture(), rectangle);
+				break;
+			case IMAGE:
+				if (mImage) {
+					gl::draw(mImage, mSrcArea, warp->getBounds());
+				}	
+				break;
+			case SHARED:
+				if (mSpoutTexture) {
+					gl::draw(mSpoutTexture, rectangle);
+				}
+				break;
+			default:
+				break;
+			}
+			warp->end();
+		}
+		else {
+			// b) simply draw a texture on them (ideal for video)
+			// in this demo, we want to draw a specific area of our image,
+			// but if you want to draw the whole image, you can simply use: warp->draw( mImage );
+			switch (mMode)
+			{
+			case SHADER:
+				warp->draw(mFbo->getColorTexture(), mSrcArea);
+				break;
+			case IMAGE:
+				if (mImage) {
+					warp->draw(mImage, mSrcArea);
+				}
+				break;
+			case SHARED:
+				if (mSpoutTexture) {
+					warp->draw(mSpoutTexture, mSrcArea);
+				}
+				break;
+			default:
+				break;
+			}
+			warp->end();
+		}
+	}
+	
 	getWindow()->setTitle(mSDASettings->sFps + " fps SDAViz");
 }
 

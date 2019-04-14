@@ -72,6 +72,15 @@
     <Filter Include="Blocks\OSC\src\cinder\osc">
       <UniqueIdentifier>{F81F78EC-A858-4FF9-BBFA-4F61069C32EB}</UniqueIdentifier>
     </Filter>
+    <Filter Include="debug">
+      <UniqueIdentifier>{58defec2-abf3-4c03-abb3-cb540e205faf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="release">
+      <UniqueIdentifier>{c608bd4b-4b85-4926-b827-85996d72e0ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="assets">
+      <UniqueIdentifier>{0bf48b10-19a9-46bb-9827-72999c1c7620}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\SDAWarpingVizApp.cpp">
@@ -255,5 +264,18 @@
     <ResourceCompile Include="Resources.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Xml Include="x64\Debug\SDAWarpingViz.xml">
+      <Filter>debug</Filter>
+    </Xml>
+    <Xml Include="x64\Release\SDAWarpingViz.xml">
+      <Filter>release</Filter>
+    </Xml>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\assets\uniforms.json">
+      <Filter>assets</Filter>
+    </None>
   </ItemGroup>
 </Project>

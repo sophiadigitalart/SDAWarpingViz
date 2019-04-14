@@ -208,8 +208,13 @@
   <ItemGroup>
     <ResourceCompile Include="Resources.rc" />
   </ItemGroup>
-  <ItemGroup />
-  <ItemGroup />
+  <ItemGroup>
+    <Xml Include="x64\Debug\SDAWarpingViz.xml" />
+    <Xml Include="x64\Release\SDAWarpingViz.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\assets\uniforms.json" />
+  </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\Resources.h" />
     <ClInclude Include="..\..\..\Cinder\blocks\Cinder-MIDI2\include\MidiConstants.h" />
