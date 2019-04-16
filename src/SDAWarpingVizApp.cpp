@@ -158,33 +158,37 @@ void SDAWarpingVizApp::resize()
 // Render into the FBO
 void SDAWarpingVizApp::renderToFbo()
 {
+
+	// this will restore the old framebuffer binding when we leave this function
+	// on non-OpenGL ES platforms, you can just call mFbo->unbindFramebuffer() at the end of the function
+	// but this will restore the "screen" FBO on OpenGL ES, and does the right thing on both platforms
+	gl::ScopedFramebuffer fbScp(mFbo);
+	// clear out the FBO with black
+	gl::clear(Color::black());
+
+	// setup the viewport to match the dimensions of the FBO
+	gl::ScopedViewport scpVp(ivec2(0), mFbo->getSize());
+
+	// render
+
+	// texture binding must be before ScopedGlslProg
 	if (mSpoutTexture) {
-		// this will restore the old framebuffer binding when we leave this function
-		// on non-OpenGL ES platforms, you can just call mFbo->unbindFramebuffer() at the end of the function
-		// but this will restore the "screen" FBO on OpenGL ES, and does the right thing on both platforms
-		gl::ScopedFramebuffer fbScp(mFbo);
-		// clear out the FBO with black
-		gl::clear(Color::black());
-
-		// setup the viewport to match the dimensions of the FBO
-		gl::ScopedViewport scpVp(ivec2(0), mFbo->getSize());
-
-		// render
-
-		// texture binding must be before ScopedGlslProg
 		mSpoutTexture->bind(0);
-
-		gl::ScopedGlslProg prog(mGlsl);
-
-		mGlsl->uniform("iGlobalTime", (float)getElapsedSeconds());
-		mGlsl->uniform("iResolution", vec3(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, 1.0));
-		mGlsl->uniform("iChannel0", 0); // texture 0
-		mGlsl->uniform("iExposure", 1.0f);
-		mGlsl->uniform("iSobel", 1.0f);
-		mGlsl->uniform("iChromatic", 1.0f);
-
-		gl::drawSolidRect(getWindowBounds());
 	}
+	else {
+		mImage->bind(0);
+	}
+	gl::ScopedGlslProg prog(mGlsl);
+
+	mGlsl->uniform("iGlobalTime", (float)getElapsedSeconds());
+	mGlsl->uniform("iResolution", vec3(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, 1.0));
+	mGlsl->uniform("iChannel0", 0); // texture 0
+	mGlsl->uniform("iExposure", 1.0f);
+	mGlsl->uniform("iSobel", 1.0f);
+	mGlsl->uniform("iChromatic", 1.0f);
+
+	gl::drawSolidRect(getWindowBounds());
+
 }
 void SDAWarpingVizApp::setUIVisibility(bool visible)
 {
@@ -234,14 +238,14 @@ void SDAWarpingVizApp::mouseMove(MouseEvent event)
 		if (!mSDASession->handleMouseMove(event)) {
 		}
 	}
-	
+
 }
 void SDAWarpingVizApp::mouseDown(MouseEvent event)
 {
 	// pass this mouse event to the warp editor first
 	if (!Warp::handleMouseDown(mWarps, event)) {
 		// let your application perform its mouseDown handling here
-		if (!mSDASession->handleMouseDown(event)) {	
+		if (!mSDASession->handleMouseDown(event)) {
 			if (event.isRightDown()) {
 				// Select a sender
 				// SpoutPanel.exe must be in the executable path
@@ -249,11 +253,10 @@ void SDAWarpingVizApp::mouseDown(MouseEvent event)
 			}
 		}
 	}
-	
 }
 void SDAWarpingVizApp::mouseDrag(MouseEvent event)
 {
-	if (!Warp::handleMouseDrag(mWarps, event)) {	
+	if (!Warp::handleMouseDrag(mWarps, event)) {
 		if (!mSDASession->handleMouseDrag(event)) {
 		}
 	}
@@ -265,7 +268,6 @@ void SDAWarpingVizApp::mouseUp(MouseEvent event)
 			// let your application perform its mouseUp handling here
 		}
 	}
-	
 }
 
 void SDAWarpingVizApp::keyDown(KeyEvent event)
@@ -334,7 +336,6 @@ void SDAWarpingVizApp::keyUp(KeyEvent event)
 		if (!mSDASession->handleKeyUp(event)) {
 		}
 	}
-	
 }
 
 void SDAWarpingVizApp::draw()
@@ -362,57 +363,45 @@ void SDAWarpingVizApp::draw()
 	}
 	Rectf rectangle = Rectf(xLeft, yLeft, xRight, yRight);
 	gl::setMatricesWindow(toPixels(getWindowSize()));
-	mSpoutTexture = mSpoutIn.receiveTexture();
-	if (mSpoutTexture) {
-		// Otherwise draw the texture and fill the screen
-		if (mSDASettings->mCursorVisible) {
-			// original
-			gl::draw(mSpoutTexture, Rectf(0, 0, tWidth, tHeight));
-			gl::drawString("Original", vec2(toPixels(0), toPixels(tHeight)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
-			// flipH
-			gl::draw(mSpoutTexture, Rectf(tWidth * 2 + margin, 0, tWidth + margin, tHeight));
-			gl::drawString("FlipH", vec2(toPixels(tWidth + margin), toPixels(tHeight)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
-			// flipV
-			gl::draw(mSpoutTexture, Rectf(0, tHeight * 2 + margin, tWidth, tHeight + margin));
-			gl::drawString("FlipV", vec2(toPixels(0), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
 
-			if (mMode == SHADER) {
-				// show the FBO color texture 
-				gl::draw(mFbo->getColorTexture(), Rectf(tWidth + margin, tHeight + margin, tWidth * 2 + margin, tHeight * 2 + margin));
-				gl::drawString("Shader", vec2(toPixels(tWidth + margin), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
+	if (mMode == SHARED) {
+		mSpoutTexture = mSpoutIn.receiveTexture();
+	}
+	if (mSDASettings->mCursorVisible) {
+		gl::ScopedBlendAlpha alpha;
+		gl::enableAlphaBlending();
+		// original
+		gl::draw(mSpoutTexture, Rectf(0, 0, tWidth, tHeight));
+		gl::drawString("Original", vec2(toPixels(0), toPixels(tHeight)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
+		// flipH
+		gl::draw(mSpoutTexture, Rectf(tWidth * 2 + margin, 0, tWidth + margin, tHeight));
+		gl::drawString("FlipH", vec2(toPixels(tWidth + margin), toPixels(tHeight)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
+		// flipV
+		gl::draw(mSpoutTexture, Rectf(0, tHeight * 2 + margin, tWidth, tHeight + margin));
+		gl::drawString("FlipV", vec2(toPixels(0), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
+		if (mMode == SHADER) {
+			// show the FBO color texture 
+			gl::draw(mFbo->getColorTexture(), Rectf(tWidth + margin, tHeight + margin, tWidth * 2 + margin, tHeight * 2 + margin));
+			gl::drawString("Shader", vec2(toPixels(tWidth + margin), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
 
-			} else {
+		}
+		if (mMode == SHARED) {
+			if (mSpoutTexture) {
+				gl::drawString("Receiving from: " + mSpoutIn.getSenderName(), vec2(toPixels(20), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
+				// Show the user what it is receiving
+				gl::ScopedBlendAlpha alpha;
+				gl::enableAlphaBlending();
+				gl::drawString("fps: " + std::to_string((int)getAverageFps()), vec2(getWindowWidth() - toPixels(100), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
+				gl::drawString("RH click to select a sender", vec2(toPixels(20), getWindowHeight() - toPixels(60)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
 
 			}
-			// Show the user what it is receiving
-			gl::ScopedBlendAlpha alpha;
-			gl::enableAlphaBlending();
-			gl::drawString("Receiving from: " + mSpoutIn.getSenderName(), vec2(toPixels(20), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
-			gl::drawString("fps: " + std::to_string((int)getAverageFps()), vec2(getWindowWidth() - toPixels(100), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
-			gl::drawString("RH click to select a sender", vec2(toPixels(20), getWindowHeight() - toPixels(60)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
-		}
-
-		// NDI
-		if (mMode == 1) {
-			mSurface = Surface::create(mFbo->getColorTexture()->createSource());
 		}
 		else {
-			mSurface = Surface::create(mSpoutTexture->createSource());
-		}
-		long long timecode = getElapsedFrames();
-		XmlTree msg{ "ci_meta", mSDASettings->sFps + " fps SDAWarpingViz" };
-		mNDISender.sendMetadata(msg, timecode);
-		mNDISender.sendSurface(*mSurface, timecode);
-	}
-	else {
-		if (mSDASettings->mCursorVisible) {
-			gl::ScopedBlendAlpha alpha;
-			gl::enableAlphaBlending();
 			gl::drawString("No sender/texture detected", vec2(toPixels(20), toPixels(20)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
-			gl::drawString("yLeft: " + std::to_string(yLeft), vec2(getWindowWidth() - toPixels(100), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
 
 		}
-		
+		gl::drawString("yLeft: " + std::to_string(yLeft), vec2(getWindowWidth() - toPixels(100), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
+
 	}
 
 	// iterate over the warps and draw their content
@@ -429,9 +418,10 @@ void SDAWarpingVizApp::draw()
 			case IMAGE:
 				if (mImage) {
 					gl::draw(mImage, mSrcArea, warp->getBounds());
-				}	
+				}
 				break;
 			case SHARED:
+				
 				if (mSpoutTexture) {
 					gl::draw(mSpoutTexture, rectangle);
 				}
@@ -456,6 +446,7 @@ void SDAWarpingVizApp::draw()
 				}
 				break;
 			case SHARED:
+				
 				if (mSpoutTexture) {
 					warp->draw(mSpoutTexture, mSrcArea);
 				}
@@ -466,7 +457,30 @@ void SDAWarpingVizApp::draw()
 			warp->end();
 		}
 	}
-	
+	// NDI
+	long long timecode = getElapsedFrames();
+	XmlTree msg{ "ci_meta", mSDASettings->sFps + " fps SDAWarpingViz" };
+	mNDISender.sendMetadata(msg, timecode);
+	switch (mMode)
+	{
+	case SHADER:
+		mSurface = Surface::create(mFbo->getColorTexture()->createSource());
+		mNDISender.sendSurface(*mSurface, timecode);
+		break;
+	case IMAGE:
+
+		break;
+	case SHARED:
+		
+		if (mSpoutTexture) {
+			mSurface = Surface::create(mSpoutTexture->createSource());
+			mNDISender.sendSurface(*mSurface, timecode);
+		}
+		break;
+	default:
+		break;
+	}
+
 	getWindow()->setTitle(mSDASettings->sFps + " fps SDAViz");
 }
 
