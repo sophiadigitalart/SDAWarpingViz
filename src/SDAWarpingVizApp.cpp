@@ -272,6 +272,15 @@ void SDAWarpingVizApp::mouseUp(MouseEvent event)
 
 void SDAWarpingVizApp::keyDown(KeyEvent event)
 {
+#if defined( CINDER_COCOA )
+	bool isModDown = event.isMetaDown();
+#else // windows
+	bool isModDown = event.isControlDown();
+#endif
+	bool isShiftDown = event.isShiftDown();
+
+	CI_LOG_V("main keydown: " + toString(event.getCode()) + " ctrl: " + toString(isModDown) + " shift: " + toString(isShiftDown));
+
 	// pass this key event to the warp editor first
 	if (!Warp::handleKeyDown(mWarps, event)) {
 		//if (!mSDASession->handleKeyDown(event)) {
@@ -302,8 +311,14 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 			quit();
 			break;
 		case KeyEvent::KEY_w:
-			// toggle warp edit mode
-			Warp::enableEditMode(!Warp::isEditModeEnabled());
+			CI_LOG_V("wsConnect");
+			if (isModDown) {
+				mSDASession->wsConnect();
+			}
+			else {
+				// toggle warp edit mode
+				Warp::enableEditMode(!Warp::isEditModeEnabled());
+			}
 			break;
 		case KeyEvent::KEY_r:
 			// toggle drawing a random region of the image
