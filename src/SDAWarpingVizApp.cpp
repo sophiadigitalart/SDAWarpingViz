@@ -38,7 +38,6 @@ public:
 	void cleanup() override;
 	void resize() override;
 	void setUIVisibility(bool visible);
-	typedef enum { IMAGE, SEQUENCE, SHADER, CAMERA, SHARED, AUDIO, STREAM } ModeType;
 
 private:
 	// Settings
@@ -47,7 +46,7 @@ private:
 	SDASessionRef					mSDASession;
 	// Log
 	SDALogRef						mSDALog;
-	ModeType						mMode;
+
 	// Spout
 	SpoutIn							mSpoutIn;
 	gl::Texture2dRef				mSpoutTexture;
@@ -56,20 +55,17 @@ private:
 	Anim<float>						mRenderWindowTimer;
 	void							positionRenderWindow();
 	bool							mFadeInDelay;
-	bool							mFlipV;
-	bool							mFlipH;
 	int								xLeft, xRight, yLeft, yRight;
 	int								margin, tWidth, tHeight;
 	//! fbos
-	void							renderToFbo();
-	gl::FboRef						mFbo;
+	//void							renderToFbo();
+	//gl::FboRef						mFbo;
 	//! shaders
-	gl::GlslProgRef					mGlsl;
+	//gl::GlslProgRef					mGlsl;
 	// ndi
-	CinderNDISender					mNDISender;
-	ci::SurfaceRef 					mSurface;
+	//CinderNDISender					mNDISender;
+	//ci::SurfaceRef 					mSurface;
 	// warping
-	bool			mUseBeginEnd;
 	fs::path		mSettings;
 	gl::TextureRef	mImage;
 	WarpList		mWarps;
@@ -78,16 +74,15 @@ private:
 
 
 SDAWarpingVizApp::SDAWarpingVizApp()
-	: mNDISender("WarpingViz")
+	//: mNDISender("WarpingViz")
 {
 	// Settings
 	mSDASettings = SDASettings::create("WarpingViz");
 	// Session
 	mSDASession = SDASession::create(mSDASettings);
 	mSDASession->getWindowsResolution();
-	mMode = SHADER;
+
 	// warping
-	mUseBeginEnd = false;
 	mSettings = getAssetPath("") / "warps.xml";
 	if (fs::exists(mSettings)) {
 		// load warp settings from file if one exists
@@ -112,8 +107,6 @@ SDAWarpingVizApp::SDAWarpingVizApp()
 	}
 
 	mFadeInDelay = true;
-	mFlipV = false;
-	mFlipH = true;
 	xLeft = 0;
 	xRight = mSDASettings->mRenderWidth;
 	yLeft = 0;
@@ -126,12 +119,17 @@ SDAWarpingVizApp::SDAWarpingVizApp()
 	// fbo
 	gl::Fbo::Format format;
 	//format.setSamples( 4 ); // uncomment this to enable 4x antialiasing
-	mFbo = gl::Fbo::create(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, format.depthTexture());
+	//mFbo = gl::Fbo::create(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, format.depthTexture());
+	// adjust the content size of the warps
+	Warp::setSize(mWarps, vec2(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight));
+	mSDASession->setFloatUniformValueByIndex(mSDASettings->IRESX, mSDASettings->mRenderWidth);
+	mSDASession->setFloatUniformValueByIndex(mSDASettings->IRESY, mSDASettings->mRenderHeight);
+	mSrcArea = Area(0, 0, mSDASettings->mRenderWidth, mSDASettings->mRenderHeight);
 	// ndi
-	mSurface = ci::Surface::create(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, true, SurfaceChannelOrder::BGRA);
+	//mSurface = ci::Surface::create(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, true, SurfaceChannelOrder::BGRA);
 
 	// shader
-	mGlsl = gl::GlslProg::create(gl::GlslProg::Format().vertex(loadAsset("passthrough.vs")).fragment(loadAsset("post.glsl")));
+	//mGlsl = gl::GlslProg::create(gl::GlslProg::Format().vertex(loadAsset("passthrough.vs")).fragment(loadAsset("post.glsl")));
 
 	gl::enableDepthRead();
 	gl::enableDepthWrite();
@@ -156,6 +154,7 @@ void SDAWarpingVizApp::resize()
 	Warp::handleResize(mWarps);
 }
 // Render into the FBO
+/*
 void SDAWarpingVizApp::renderToFbo()
 {
 
@@ -172,24 +171,26 @@ void SDAWarpingVizApp::renderToFbo()
 	// render
 
 	// texture binding must be before ScopedGlslProg
-	if (mSpoutTexture) {
-		mSpoutTexture->bind(0);
-	}
-	else {
-		mImage->bind(0);
-	}
+	//if (mSpoutTexture) {
+	//	mSpoutTexture->bind(0);
+	//}
+	//else {
+	//	mImage->bind(0);
+	//}
+	mSDASession->getMixetteTexture()->bind(0);
+	//mImage->bind(0);
 	gl::ScopedGlslProg prog(mGlsl);
 
-	mGlsl->uniform("iGlobalTime", (float)getElapsedSeconds());
+	mGlsl->uniform("iTime", (float)getElapsedSeconds());
 	mGlsl->uniform("iResolution", vec3(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, 1.0));
 	mGlsl->uniform("iChannel0", 0); // texture 0
 	mGlsl->uniform("iExposure", 1.0f);
 	mGlsl->uniform("iSobel", 1.0f);
 	mGlsl->uniform("iChromatic", 1.0f);
 
-	gl::drawSolidRect(getWindowBounds());
-
-}
+	//gl::drawSolidRect(getWindowBounds());
+	gl::drawSolidRect(Rectf(0, 0, mSDASettings->mRenderWidth, mSDASettings->mRenderHeight));
+} */
 void SDAWarpingVizApp::setUIVisibility(bool visible)
 {
 	if (visible)
@@ -211,9 +212,9 @@ void SDAWarpingVizApp::update()
 		mSDASession->setFloatUniformValueByIndex(mSDASettings->IFPS, getAverageFps());
 		mSDASession->update();
 		// render into our FBO
-		if (mMode == SHADER) {
+		/*if (mSDASession->getMode() == mSDASettings->MODE_SHADER) {
 			renderToFbo();
-		}
+		}*/
 	}
 }
 void SDAWarpingVizApp::cleanup()
@@ -278,72 +279,48 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 	bool isModDown = event.isControlDown();
 #endif
 	bool isShiftDown = event.isShiftDown();
-
-	CI_LOG_V("main keydown: " + toString(event.getCode()) + " ctrl: " + toString(isModDown) + " shift: " + toString(isShiftDown));
-
+	bool isAltDown = event.isAltDown();
+	CI_LOG_V("main keydown: " + toString(event.getCode()) + " ctrl: " + toString(isModDown) + " shift: " + toString(isShiftDown) + " alt: " + toString(isAltDown));
+	 
 	// pass this key event to the warp editor first
 	if (!Warp::handleKeyDown(mWarps, event)) {
-		//if (!mSDASession->handleKeyDown(event)) {
-		switch (event.getCode()) {
-		case KeyEvent::KEY_KP_PLUS:
-		case KeyEvent::KEY_DOLLAR:
-		case KeyEvent::KEY_TAB:
-		case KeyEvent::KEY_f:
-			positionRenderWindow();
-			break;
-		case KeyEvent::KEY_a:
-			mMode = SHADER;
-			break;
-		case KeyEvent::KEY_z:
-			mMode = SHARED;
-			break;
-		case KeyEvent::KEY_e:
-			mMode = IMAGE;
-			break;
-		case KeyEvent::KEY_v:
-			mFlipV = !mFlipV;
-			break;
-		case KeyEvent::KEY_h:
-			mFlipH = !mFlipH;
-			break;
-		case KeyEvent::KEY_ESCAPE:
-			// quit the application
-			quit();
-			break;
-		case KeyEvent::KEY_w:
-			CI_LOG_V("wsConnect");
-			if (isModDown) {
-				mSDASession->wsConnect();
+		if (!mSDASession->handleKeyDown(event)) {
+			switch (event.getCode()) {
+			case KeyEvent::KEY_KP_PLUS:
+			case KeyEvent::KEY_TAB:
+			case KeyEvent::KEY_f:
+				positionRenderWindow();
+				break;
+
+
+			case KeyEvent::KEY_w:
+				CI_LOG_V("warp edit mode");
+				if (!isModDown) {
+					// toggle warp edit mode
+					Warp::enableEditMode(!Warp::isEditModeEnabled());
+				}
+				if (isAltDown) {
+					// toggle drawing a random region of the image
+					if (mSrcArea.getWidth() != mImage->getWidth() || mSrcArea.getHeight() != mImage->getHeight())
+						mSrcArea = mImage->getBounds();
+					else {
+						int x1 = Rand::randInt(0, mImage->getWidth() - 150);
+						int y1 = Rand::randInt(0, mImage->getHeight() - 150);
+						int x2 = Rand::randInt(x1 + 150, mImage->getWidth());
+						int y2 = Rand::randInt(y1 + 150, mImage->getHeight());
+						mSrcArea = Area(x1, y1, x2, y2);
+					}
+				}
+				break;
+			case KeyEvent::KEY_c:
+				// mouse cursor and ui visibility
+				mSDASettings->mCursorVisible = !mSDASettings->mCursorVisible;
+				setUIVisibility(mSDASettings->mCursorVisible);
+				break;
 			}
-			else {
-				// toggle warp edit mode
-				Warp::enableEditMode(!Warp::isEditModeEnabled());
-			}
-			break;
-		case KeyEvent::KEY_r:
-			// toggle drawing a random region of the image
-			if (mSrcArea.getWidth() != mImage->getWidth() || mSrcArea.getHeight() != mImage->getHeight())
-				mSrcArea = mImage->getBounds();
-			else {
-				int x1 = Rand::randInt(0, mImage->getWidth() - 150);
-				int y1 = Rand::randInt(0, mImage->getHeight() - 150);
-				int x2 = Rand::randInt(x1 + 150, mImage->getWidth());
-				int y2 = Rand::randInt(y1 + 150, mImage->getHeight());
-				mSrcArea = Area(x1, y1, x2, y2);
-			}
-			break;
-		case KeyEvent::KEY_SPACE:
-			// toggle drawing mode
-			mUseBeginEnd = !mUseBeginEnd;
-			break;
-		case KeyEvent::KEY_c:
-			// mouse cursor and ui visibility
-			mSDASettings->mCursorVisible = !mSDASettings->mCursorVisible;
-			setUIVisibility(mSDASettings->mCursorVisible);
-			break;
 		}
 	}
-	CI_LOG_V("key " + toString(event.getCode()) + " mode:" + toString(mMode));
+	
 }
 void SDAWarpingVizApp::keyUp(KeyEvent event)
 {
@@ -364,43 +341,42 @@ void SDAWarpingVizApp::draw()
 		}
 	}
 
-	xLeft = 0;
+	xLeft = mSDASession->getFloatUniformValueByName("iResolutionX") / 3.0f;
 	xRight = mSDASettings->mRenderWidth;
 	yLeft = 0;
 	yRight = mSDASettings->mRenderHeight;
-	if (mFlipV) {
+	/*if (mSDASettings->mFlipV) {
 		yLeft = yRight;
 		yRight = 0;
 	}
-	if (mFlipH) {
+	if (mSDASettings->mFlipH) {
 		xLeft = xRight;
 		xRight = 0;
-	}
-	Rectf rectangle = Rectf(xLeft, yLeft, xRight, yRight);
+	} 
+	Rectf rectangle = Rectf(xLeft, yLeft, xRight, yRight);*/
 	gl::setMatricesWindow(toPixels(getWindowSize()));
 
-	if (mMode == SHARED) {
+	if (mSDASession->getMode() == mSDASettings->MODE_SHARED) {
 		mSpoutTexture = mSpoutIn.receiveTexture();
 	}
 	if (mSDASettings->mCursorVisible) {
 		gl::ScopedBlendAlpha alpha;
 		gl::enableAlphaBlending();
 		// original
-		gl::draw(mSpoutTexture, Rectf(0, 0, tWidth, tHeight));
-		gl::drawString("Original", vec2(toPixels(0), toPixels(tHeight)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
+		gl::draw(mSDASession->getMixetteTexture(), Rectf(0, 0, tWidth, tHeight));
+		gl::drawString("Mixette", vec2(toPixels(xLeft), toPixels(tHeight)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
 		// flipH
-		gl::draw(mSpoutTexture, Rectf(tWidth * 2 + margin, 0, tWidth + margin, tHeight));
-		gl::drawString("FlipH", vec2(toPixels(tWidth + margin), toPixels(tHeight)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
+		gl::draw(mSDASession->getRenderTexture(), Rectf(tWidth * 2 + margin, 0, tWidth + margin, tHeight));
+		gl::drawString("Render", vec2(toPixels(xLeft + tWidth + margin), toPixels(tHeight)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
 		// flipV
 		gl::draw(mSpoutTexture, Rectf(0, tHeight * 2 + margin, tWidth, tHeight + margin));
-		gl::drawString("FlipV", vec2(toPixels(0), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
-		if (mMode == SHADER) {
-			// show the FBO color texture 
-			gl::draw(mFbo->getColorTexture(), Rectf(tWidth + margin, tHeight + margin, tWidth * 2 + margin, tHeight * 2 + margin));
-			gl::drawString("Shader", vec2(toPixels(tWidth + margin), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
+		gl::drawString("Spout", vec2(toPixels(xLeft), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
+		
+		// show the FBO color texture 
+		gl::draw(mSDASession->getHydraTexture(), Rectf(tWidth + margin, tHeight + margin, tWidth * 2 + margin, tHeight * 2 + margin));
+		gl::drawString("Hydra", vec2(toPixels(xLeft + tWidth + margin), toPixels(tHeight * 2 + margin)), Color(1, 1, 1), Font("Verdana", toPixels(16)));
 
-		}
-		if (mMode == SHARED) {
+		if (mSDASession->getMode() == mSDASettings->MODE_SHARED) {
 			if (mSpoutTexture) {
 				gl::drawString("Receiving from: " + mSpoutIn.getSenderName(), vec2(toPixels(20), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
 				// Show the user what it is receiving
@@ -415,77 +391,62 @@ void SDAWarpingVizApp::draw()
 			gl::drawString("No sender/texture detected", vec2(toPixels(20), toPixels(20)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
 
 		}
-		gl::drawString("yLeft: " + std::to_string(yLeft), vec2(getWindowWidth() - toPixels(100), getWindowHeight() - toPixels(30)), Color(1, 1, 1), Font("Verdana", toPixels(24)));
-
+		gl::drawString("irx: " + std::to_string(mSDASession->getFloatUniformValueByName("iResolutionX"))
+			+ " iry: " + std::to_string(mSDASession->getFloatUniformValueByName("iResolutionY"))
+			+ " fw: " + std::to_string(mSDASettings->mFboWidth)
+			+ " fh: " + std::to_string(mSDASettings->mFboHeight),
+			vec2(xLeft, getWindowHeight() - toPixels(30)), Color(1, 1, 1),
+			Font("Verdana", toPixels(24)));
 	}
-
+	if (mSDASettings->mFlipV) {
+		yLeft = yRight;
+		yRight = 0;
+		//mSrcArea = Area(0, 0, mSDASettings->mRenderWidth, mSDASettings->mRenderHeight);
+	}
+	if (mSDASettings->mFlipH) {
+		xLeft = xRight;
+		xRight = 0;
+	}
 	// iterate over the warps and draw their content
-	for (auto &warp : mWarps) {
-		// there are two ways you can use the warps:
-		if (mUseBeginEnd) {
-			// a) issue your draw commands between begin() and end() statements
-			warp->begin();
-			switch (mMode)
-			{
-			case SHADER:
-				gl::draw(mFbo->getColorTexture(), rectangle);
-				break;
-			case IMAGE:
-				if (mImage) {
-					gl::draw(mImage, mSrcArea, warp->getBounds());
-				}
-				break;
-			case SHARED:
-				
-				if (mSpoutTexture) {
-					gl::draw(mSpoutTexture, rectangle);
-				}
-				break;
-			default:
-				break;
+	for (auto &warp : mWarps) {	
+		//warp->draw(mFbo->getColorTexture(), mSrcArea);
+		warp->draw(mSDASession->getRenderTexture(), mSrcArea);
+		/*switch (mSDASession->getMode())
+		{
+		case mSDASettings->MODE_SHADER:
+			warp->draw(mFbo->getColorTexture(), mSrcArea);
+			break;
+		case mSDASettings->MODE_IMAGE:
+			if (mImage) {
+				warp->draw(mImage, mSrcArea);
 			}
-			warp->end();
-		}
-		else {
-			// b) simply draw a texture on them (ideal for video)
-			// in this demo, we want to draw a specific area of our image,
-			// but if you want to draw the whole image, you can simply use: warp->draw( mImage );
-			switch (mMode)
-			{
-			case SHADER:
-				warp->draw(mFbo->getColorTexture(), mSrcArea);
-				break;
-			case IMAGE:
-				if (mImage) {
-					warp->draw(mImage, mSrcArea);
-				}
-				break;
-			case SHARED:
-				
-				if (mSpoutTexture) {
-					warp->draw(mSpoutTexture, mSrcArea);
-				}
-				break;
-			default:
-				break;
+			break;
+		case mSDASettings->MODE_SHARED:
+			if (mSpoutTexture) {
+				warp->draw(mSpoutTexture, mSrcArea);
 			}
-			warp->end();
-		}
+			break;
+		case mSDASettings->MODE_MIX:
+			warp->draw(mSDASession->getMixTexture(), mSrcArea);
+			break;
+		default:
+			break;
+		} */
 	}
 	// NDI
-	long long timecode = getElapsedFrames();
+	/*long long timecode = getElapsedFrames();
 	XmlTree msg{ "ci_meta", mSDASettings->sFps + " fps SDAWarpingViz" };
 	mNDISender.sendMetadata(msg, timecode);
-	switch (mMode)
+	switch (mSDASession->getMode())
 	{
-	case SHADER:
+	case mSDASettings->MODE_SHADER:
 		mSurface = Surface::create(mFbo->getColorTexture()->createSource());
 		mNDISender.sendSurface(*mSurface, timecode);
 		break;
-	case IMAGE:
+	case mSDASettings->MODE_IMAGE:
 
 		break;
-	case SHARED:
+	case mSDASettings->MODE_SHARED:
 		
 		if (mSpoutTexture) {
 			mSurface = Surface::create(mSpoutTexture->createSource());
@@ -494,14 +455,14 @@ void SDAWarpingVizApp::draw()
 		break;
 	default:
 		break;
-	}
+	} */
 
-	getWindow()->setTitle(mSDASettings->sFps + " fps SDAViz");
+	getWindow()->setTitle(mSDASettings->sFps + " fps WarpViz");
 }
 
 void prepareSettings(App::Settings *settings)
 {
-	settings->setWindowSize(800, 600);
+	settings->setWindowSize(1280, 720);
 	settings->setConsoleWindowEnabled();
 }
 

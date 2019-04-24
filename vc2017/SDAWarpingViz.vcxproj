@@ -213,6 +213,8 @@
     <Xml Include="x64\Release\SDAWarpingViz.xml" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\assets\mixette.glsl" />
+    <None Include="..\..\assets\post.glsl" />
     <None Include="..\..\assets\uniforms.json" />
   </ItemGroup>
   <ItemGroup>

@@ -277,5 +277,11 @@
     <None Include="..\..\assets\uniforms.json">
       <Filter>assets</Filter>
     </None>
+    <None Include="..\..\assets\post.glsl">
+      <Filter>assets</Filter>
+    </None>
+    <None Include="..\..\assets\mixette.glsl">
+      <Filter>assets</Filter>
+    </None>
   </ItemGroup>
 </Project>
