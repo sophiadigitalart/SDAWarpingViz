@@ -6,9 +6,9 @@
 	<MainWindowHeight value="1080"/>
 	<MainWindowX value="0"/>
 	<MainWindowY value="0"/>
-	<RenderWidth value="1680"/>
-	<RenderHeight value="1050"/>
-	<RenderX value="1920"/>
+	<RenderWidth value="1920"/>
+	<RenderHeight value="1080"/>
+	<RenderX value="0"/>
 	<RenderY value="0"/>
 	<AspectRatio value="0.5625"/>
 	<FboWidth value="1280"/>
@@ -28,8 +28,8 @@
 	<IsRouter value="0"/>
 	<IsWebSocketsServer value="0"/>
 	<WebSocketsProtocol value="ws://"/>
-	<WebSocketsHost value="localhost"/>
-	<WebSocketsPort value="8088"/>
+	<WebSocketsHost value="light4eventsws.herokuapp.com/light4events"/>
+	<WebSocketsPort value="80"/>
 	<FftSize value="512"/>
 	<WindowSize value="1024"/>
 	<Info value=""/>

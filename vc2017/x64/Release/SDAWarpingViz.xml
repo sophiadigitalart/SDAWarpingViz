@@ -28,8 +28,8 @@
 	<IsRouter value="0"/>
 	<IsWebSocketsServer value="0"/>
 	<WebSocketsProtocol value="ws://"/>
-	<WebSocketsHost value="localhost"/>
-	<WebSocketsPort value="8088"/>
+	<WebSocketsHost value="light4eventsws.herokuapp.com/light4events"/>
+	<WebSocketsPort value="80"/>
 	<FftSize value="512"/>
 	<WindowSize value="1024"/>
 	<Info value=""/>

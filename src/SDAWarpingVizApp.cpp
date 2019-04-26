@@ -299,6 +299,8 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 					// toggle warp edit mode
 					Warp::enableEditMode(!Warp::isEditModeEnabled());
 				}
+				break;
+			/*case KeyEvent::KEY_c:
 				if (isAltDown) {
 					// toggle drawing a random region of the image
 					if (mSrcArea.getWidth() != mImage->getWidth() || mSrcArea.getHeight() != mImage->getHeight())
@@ -311,7 +313,7 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 						mSrcArea = Area(x1, y1, x2, y2);
 					}
 				}
-				break;
+				break; */
 			case KeyEvent::KEY_c:
 				// mouse cursor and ui visibility
 				mSDASettings->mCursorVisible = !mSDASettings->mCursorVisible;
@@ -341,19 +343,21 @@ void SDAWarpingVizApp::draw()
 		}
 	}
 
-	xLeft = mSDASession->getFloatUniformValueByName("iResolutionX") / 3.0f;
+	xLeft = 0;// mSDASession->getFloatUniformValueByName("iResolutionX") / 3.0f;
 	xRight = mSDASettings->mRenderWidth;
 	yLeft = 0;
 	yRight = mSDASettings->mRenderHeight;
-	/*if (mSDASettings->mFlipV) {
+	if (mSDASettings->mFlipV) {
 		yLeft = yRight;
 		yRight = 0;
 	}
 	if (mSDASettings->mFlipH) {
 		xLeft = xRight;
 		xRight = 0;
-	} 
-	Rectf rectangle = Rectf(xLeft, yLeft, xRight, yRight);*/
+	}
+	mSrcArea = Area(xLeft, yLeft, xRight, yRight );
+	 
+	//Rectf rectangle = Rectf(xLeft, yLeft, xRight, yRight);
 	gl::setMatricesWindow(toPixels(getWindowSize()));
 
 	if (mSDASession->getMode() == mSDASettings->MODE_SHARED) {
@@ -398,19 +402,21 @@ void SDAWarpingVizApp::draw()
 			vec2(xLeft, getWindowHeight() - toPixels(30)), Color(1, 1, 1),
 			Font("Verdana", toPixels(24)));
 	}
-	if (mSDASettings->mFlipV) {
-		yLeft = yRight;
-		yRight = 0;
-		//mSrcArea = Area(0, 0, mSDASettings->mRenderWidth, mSDASettings->mRenderHeight);
-	}
-	if (mSDASettings->mFlipH) {
-		xLeft = xRight;
-		xRight = 0;
-	}
+
 	// iterate over the warps and draw their content
 	for (auto &warp : mWarps) {	
 		//warp->draw(mFbo->getColorTexture(), mSrcArea);
-		warp->draw(mSDASession->getRenderTexture(), mSrcArea);
+		
+		if (mSDASession->getMode() == 0) warp->draw(mSDASession->getMixetteTexture(), mSrcArea);
+		if (mSDASession->getMode() == 1) warp->draw(mSDASession->getMixTexture(), mSrcArea);
+		if (mSDASession->getMode() == 2) warp->draw(mSDASession->getRenderTexture(), mSrcArea);
+		if (mSDASession->getMode() == 3) warp->draw(mSDASession->getHydraTexture(), mSrcArea);
+		if (mSDASession->getMode() == 4) warp->draw(mSDASession->getFboTexture(0), mSrcArea);
+		if (mSDASession->getMode() == 5) warp->draw(mSDASession->getFboTexture(1), mSrcArea);
+		if (mSDASession->getMode() == 6) warp->draw(mSDASession->getFboTexture(2), mSrcArea);
+		if (mSDASession->getMode() == 7) warp->draw(mSDASession->getFboTexture(3), mSrcArea);
+		if (mSDASession->getMode() == 8) warp->draw(mSDASession->getFboTexture(4), mSrcArea);
+
 		/*switch (mSDASession->getMode())
 		{
 		case mSDASettings->MODE_SHADER:
