@@ -70,6 +70,15 @@ private:
 	gl::TextureRef	mImage;
 	WarpList		mWarps;
 	Area			mSrcArea;
+	int deltaX;
+	int deltaY;
+	//! fbos
+	void							renderToFbo();
+	gl::FboRef						mFbo;
+	//! shaders
+	gl::GlslProgRef					mGlsl;
+	bool							mUseShader;
+	bool							mUseCustom;
 };
 
 
@@ -93,7 +102,7 @@ SDAWarpingVizApp::SDAWarpingVizApp()
 		mWarps.push_back(WarpPerspectiveBilinear::create());
 	}
 	// load test image
-	try {
+	/*try {
 		mImage = gl::Texture::create(loadImage(loadAsset("splash.jpg")),
 			gl::Texture2d::Format().loadTopDown().mipmap(true).minFilter(GL_LINEAR_MIPMAP_LINEAR));
 
@@ -104,8 +113,9 @@ SDAWarpingVizApp::SDAWarpingVizApp()
 	}
 	catch (const std::exception &e) {
 		console() << e.what() << std::endl;
-	}
-
+	} */
+	deltaX = 0;
+	deltaY = 0;
 	mFadeInDelay = true;
 	xLeft = 0;
 	xRight = mSDASettings->mRenderWidth;
@@ -130,6 +140,13 @@ SDAWarpingVizApp::SDAWarpingVizApp()
 
 	// shader
 	//mGlsl = gl::GlslProg::create(gl::GlslProg::Format().vertex(loadAsset("passthrough.vs")).fragment(loadAsset("post.glsl")));
+	//format.setSamples( 4 ); // uncomment this to enable 4x antialiasing
+	mFbo = gl::Fbo::create(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, format.depthTexture());
+
+	mUseCustom = false;
+	// shader
+	mUseShader = false;
+	mGlsl = gl::GlslProg::create(gl::GlslProg::Format().vertex(loadAsset("passthrough.vs")).fragment(loadAsset("post.glsl")));
 
 	gl::enableDepthRead();
 	gl::enableDepthWrite();
@@ -191,6 +208,37 @@ void SDAWarpingVizApp::renderToFbo()
 	//gl::drawSolidRect(getWindowBounds());
 	gl::drawSolidRect(Rectf(0, 0, mSDASettings->mRenderWidth, mSDASettings->mRenderHeight));
 } */
+// Render into the FBO
+void SDAWarpingVizApp::renderToFbo()
+{
+	if (mSpoutTexture) {
+		// this will restore the old framebuffer binding when we leave this function
+		// on non-OpenGL ES platforms, you can just call mFbo->unbindFramebuffer() at the end of the function
+		// but this will restore the "screen" FBO on OpenGL ES, and does the right thing on both platforms
+		gl::ScopedFramebuffer fbScp(mFbo);
+		// clear out the FBO with black
+		gl::clear(Color::black());
+
+		// setup the viewport to match the dimensions of the FBO
+		gl::ScopedViewport scpVp(ivec2(0), mFbo->getSize());
+
+		// render
+
+		// texture binding must be before ScopedGlslProg
+		mSpoutTexture->bind(0);
+
+		gl::ScopedGlslProg prog(mGlsl);
+
+		mGlsl->uniform("iGlobalTime", (float)getElapsedSeconds());
+		mGlsl->uniform("iResolution", vec3(mSDASettings->mRenderWidth, mSDASettings->mRenderHeight, 1.0));
+		mGlsl->uniform("iChannel0", 0); // texture 0
+		mGlsl->uniform("iExposure", 1.0f);
+		mGlsl->uniform("iSobel", 1.0f);
+		mGlsl->uniform("iChromatic", 1.0f);
+
+		gl::drawSolidRect(getWindowBounds());
+	}
+}
 void SDAWarpingVizApp::setUIVisibility(bool visible)
 {
 	if (visible)
@@ -215,6 +263,9 @@ void SDAWarpingVizApp::update()
 		/*if (mSDASession->getMode() == mSDASettings->MODE_SHADER) {
 			renderToFbo();
 		}*/
+		if (mUseShader) {
+			renderToFbo();
+		}
 	}
 }
 void SDAWarpingVizApp::cleanup()
@@ -284,14 +335,45 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 	 
 	// pass this key event to the warp editor first
 	if (!Warp::handleKeyDown(mWarps, event)) {
-		if (!mSDASession->handleKeyDown(event)) {
+		//if (!mSDASession->handleKeyDown(event)) {
 			switch (event.getCode()) {
 			case KeyEvent::KEY_KP_PLUS:
 			case KeyEvent::KEY_TAB:
 			case KeyEvent::KEY_f:
 				positionRenderWindow();
 				break;
-
+			case KeyEvent::KEY_v:
+				mSDASettings->mFlipV = !mSDASettings->mFlipV;
+				break;
+			case KeyEvent::KEY_h:
+				mSDASettings->mFlipH = !mSDASettings->mFlipH;
+				break;
+			case KeyEvent::KEY_s:
+				mUseShader = !mUseShader;
+				break;
+			case KeyEvent::KEY_q:
+				mUseCustom = !mUseCustom;
+				break;
+			case KeyEvent::KEY_e:
+				
+				if (isAltDown) {
+					deltaX -= 10;
+					if (deltaX < 0) deltaX = 0;
+				}
+				else {
+					deltaX += 10;
+				}
+				break;
+			case KeyEvent::KEY_d:
+				if (isAltDown) {
+					deltaY -= 10;
+					if (deltaY < 0) deltaY = 0;
+				}
+				else {
+					deltaY += 10;
+				}
+				break;
+			
 
 			case KeyEvent::KEY_w:
 				CI_LOG_V("warp edit mode");
@@ -300,27 +382,14 @@ void SDAWarpingVizApp::keyDown(KeyEvent event)
 					Warp::enableEditMode(!Warp::isEditModeEnabled());
 				}
 				break;
-			/*case KeyEvent::KEY_c:
-				if (isAltDown) {
-					// toggle drawing a random region of the image
-					if (mSrcArea.getWidth() != mImage->getWidth() || mSrcArea.getHeight() != mImage->getHeight())
-						mSrcArea = mImage->getBounds();
-					else {
-						int x1 = Rand::randInt(0, mImage->getWidth() - 150);
-						int y1 = Rand::randInt(0, mImage->getHeight() - 150);
-						int x2 = Rand::randInt(x1 + 150, mImage->getWidth());
-						int y2 = Rand::randInt(y1 + 150, mImage->getHeight());
-						mSrcArea = Area(x1, y1, x2, y2);
-					}
-				}
-				break; */
+			
 			case KeyEvent::KEY_c:
 				// mouse cursor and ui visibility
 				mSDASettings->mCursorVisible = !mSDASettings->mCursorVisible;
 				setUIVisibility(mSDASettings->mCursorVisible);
 				break;
 			}
-		}
+		//}
 	}
 	
 }
@@ -347,22 +416,26 @@ void SDAWarpingVizApp::draw()
 	xRight = mSDASettings->mRenderWidth;
 	yLeft = 0;
 	yRight = mSDASettings->mRenderHeight;
-	if (mSDASettings->mFlipV) {
-		yLeft = yRight;
-		yRight = 0;
-	}
-	if (mSDASettings->mFlipH) {
-		xLeft = xRight;
-		xRight = 0;
+	if (mUseCustom) {
+		xRight += deltaX;
+	} else{
+		if (mSDASettings->mFlipV) {
+			yLeft = yRight;
+			yRight = 0;
+		}
+		if (mSDASettings->mFlipH) {
+			xLeft = xRight;
+			xRight = 0;
+		}
 	}
 	mSrcArea = Area(xLeft, yLeft, xRight, yRight );
 	 
 	//Rectf rectangle = Rectf(xLeft, yLeft, xRight, yRight);
 	gl::setMatricesWindow(toPixels(getWindowSize()));
 
-	if (mSDASession->getMode() == mSDASettings->MODE_SHARED) {
+	//if (mSDASession->getMode() == mSDASettings->MODE_SHARED) {
 		mSpoutTexture = mSpoutIn.receiveTexture();
-	}
+	//}
 	if (mSDASettings->mCursorVisible) {
 		gl::ScopedBlendAlpha alpha;
 		gl::enableAlphaBlending();
@@ -406,8 +479,14 @@ void SDAWarpingVizApp::draw()
 	// iterate over the warps and draw their content
 	for (auto &warp : mWarps) {	
 		//warp->draw(mFbo->getColorTexture(), mSrcArea);
-		
-		if (mSDASession->getMode() == 0) warp->draw(mSDASession->getMixetteTexture(), mSrcArea);
+		if (mUseShader) {
+			warp->draw(mFbo->getColorTexture(), mSrcArea);
+		}
+		else {
+			warp->draw(mSpoutTexture, mSrcArea);
+
+		}
+		/* if (mSDASession->getMode() == 0) warp->draw(mSDASession->getMixetteTexture(), mSrcArea);
 		if (mSDASession->getMode() == 1) warp->draw(mSDASession->getMixTexture(), mSrcArea);
 		if (mSDASession->getMode() == 2) warp->draw(mSDASession->getRenderTexture(), mSrcArea);
 		if (mSDASession->getMode() == 3) warp->draw(mSDASession->getHydraTexture(), mSrcArea);
@@ -415,7 +494,7 @@ void SDAWarpingVizApp::draw()
 		if (mSDASession->getMode() == 5) warp->draw(mSDASession->getFboTexture(1), mSrcArea);
 		if (mSDASession->getMode() == 6) warp->draw(mSDASession->getFboTexture(2), mSrcArea);
 		if (mSDASession->getMode() == 7) warp->draw(mSDASession->getFboTexture(3), mSrcArea);
-		if (mSDASession->getMode() == 8) warp->draw(mSDASession->getFboTexture(4), mSrcArea);
+		if (mSDASession->getMode() == 8) warp->draw(mSDASession->getFboTexture(4), mSrcArea); */
 
 		/*switch (mSDASession->getMode())
 		{
